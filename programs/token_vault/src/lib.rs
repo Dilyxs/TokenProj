@@ -50,8 +50,71 @@ pub mod token_example {
         ctx.accounts.data.quantity += amount;
         Ok(())
     }
-}
+    pub fn withdraw(ctx: Context<WithdrawFromVault>, amount: u64) -> Result<()> {
+        let user_acc = &ctx.accounts.bookeeping_acc;
+        if user_acc.quantity < amount {
+            return err!(TokenError::NotEnoughFunds);
+        }
+        let from = ctx.accounts.vault_ata.to_account_info();
+        let to = ctx.accounts.owner_ata.to_account_info();
+        let mint = ctx.accounts.mint.to_account_info();
+        let authority = ctx.accounts.vault_authority.to_account_info();
+        let cpi_req = TransferChecked {
+            from,
+            to,
+            mint,
+            authority,
+        };
 
+        let seeds: &[&[&[u8]]] = &[&[b"authority", &[ctx.bumps.vault_authority]]];
+
+        let ix = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_req,
+            seeds,
+        );
+        token_interface::transfer_checked(ix, amount, TOKEN_DECIAL as u8)?;
+        ctx.accounts.bookeeping_acc.quantity -= amount;
+
+        Ok(())
+    }
+}
+#[derive(Accounts)]
+pub struct WithdrawFromVault<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    #[account(mut,
+        seeds=[b"authority"],
+        bump
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+    #[account(mut,
+        seeds=[b"mint"],
+        bump,
+    )]
+    pub mint: InterfaceAccount<'info, Mint>,
+    #[account(
+        mut,
+        associated_token::mint=mint,
+        associated_token::authority=owner
+    )]
+    pub owner_ata: InterfaceAccount<'info, TokenAccount>,
+    #[account(mut,
+        associated_token::mint=mint,
+        associated_token::authority=vault_authority
+    )]
+    pub vault_ata: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(mut,
+        seeds=[b"deposit_info", owner.key().as_ref()],
+        bump
+    )]
+    pub bookeeping_acc: Account<'info, DepositeToken>,
+
+    pub system_program: Program<'info, System>,
+    pub token_program: Interface<'info, TokenInterface>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+}
 #[derive(Accounts)]
 pub struct DepositToVault<'info> {
     #[account(mut)]
@@ -174,4 +237,10 @@ pub struct MintToUser<'info> {
 pub struct DepositeToken {
     pub owner: Pubkey,
     pub quantity: u64,
+}
+
+#[error_code]
+pub enum TokenError {
+    #[msg("not enough founds")]
+    NotEnoughFunds,
 }
