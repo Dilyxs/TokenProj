@@ -30,8 +30,9 @@ pub mod token_example {
         token_interface::mint_to(cpi_tx, amount)?;
         Ok(())
     }
+    //:TODO: add create vault_token_acc, struct already written
 
-    pub fn create_vault_token(ctx: Context<DepositToVault>, amount: u64) -> Result<()> {
+    pub fn deposit(ctx: Context<DepositToVault>, amount: u64) -> Result<()> {
         let from_acc = ctx.accounts.user_token_acc.to_account_info();
         let to_acc = ctx.accounts.vault_acc.to_account_info();
         let owner_permission_acc = ctx.accounts.owner.to_account_info();
