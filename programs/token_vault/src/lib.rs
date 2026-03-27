@@ -145,6 +145,7 @@ pub mod token_example {
 }
 #[derive(Accounts)]
 pub struct isUserSubscriptionValid<'info> {
+    ///CHECK just reading so fine!
     pub owner: AccountInfo<'info>,
     #[account(
     seeds=[b"adsayan_mint"],
