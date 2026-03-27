@@ -270,7 +270,7 @@ pub struct WithdrawFromVault<'info> {
     ///CHECK: only for CPI
     pub vault_authority: UncheckedAccount<'info>,
     #[account(mut,
-        seeds=[b"mint"],
+        seeds=[b"adsayan_mint"],
         bump,
     )]
     pub mint: InterfaceAccount<'info, Mint>,
@@ -308,7 +308,7 @@ pub struct DepositToVault<'info> {
     ///CHECK: only for CPI
     pub vault_authority: UncheckedAccount<'info>,
     #[account(mut,
-    seeds=[b"mint"],
+    seeds=[b"adsayan_mint"],
     bump
 )]
     pub mint: InterfaceAccount<'info, Mint>,
@@ -350,7 +350,7 @@ pub struct MintToUser<'info> {
     pub vault_authority: UncheckedAccount<'info>,
     #[account(
         mut,
-        seeds=[b"mint"],
+        seeds=[b"adsayan_mint"],
         bump
     )]
     pub mint: InterfaceAccount<'info, Mint>,
