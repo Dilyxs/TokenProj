@@ -3,7 +3,6 @@ use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token_2022::{MintTo, TransferChecked};
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 declare_id!("3pX5NKLru1UBDVckynWQxsgnJeUN3N1viy36Gk9TSn8d");
-use anchor_spl::token::Transfer;
 use anchor_spl::token_interface;
 const ANCHOR_DISCRIMINATOR: usize = 8;
 const TOKEN_DEMICAL: u8 = 6;
@@ -133,6 +132,29 @@ pub mod token_example {
         });
         Ok(())
     }
+    pub fn is_user_subcribed(ctx: Context<isUserSubscriptionValid>) -> Result<()> {
+        let clock = Clock::get()?;
+        let current_time = clock.unix_timestamp;
+        if current_time <= ctx.accounts.user_acc.expires_at {
+            emit!(IsValidSubscription { is_valid: true });
+        } else {
+            emit!(IsValidSubscription { is_valid: false })
+        }
+        Ok(())
+    }
+}
+#[derive(Accounts)]
+pub struct isUserSubscriptionValid<'info> {
+    pub owner: AccountInfo<'info>,
+    #[account(
+    seeds=[b"adsayan_mint"],
+    bump)]
+    pub mint: InterfaceAccount<'info, Mint>,
+    #[account(
+        seeds=[b"subcription", owner.key().as_ref()],
+        bump
+    )]
+    pub user_acc: Account<'info, Subscription>,
 }
 #[derive(Accounts)]
 pub struct SubscribeToVault<'info> {
@@ -383,4 +405,8 @@ pub struct SuccesfullRenew {
     pub message: String,
     pub new_expiry: i64,
     pub owner: Pubkey,
+}
+#[event]
+pub struct IsValidSubscription {
+    pub is_valid: bool,
 }
