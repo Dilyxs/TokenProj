@@ -6,7 +6,7 @@ declare_id!("3pX5NKLru1UBDVckynWQxsgnJeUN3N1viy36Gk9TSn8d");
 use anchor_spl::token::Transfer;
 use anchor_spl::token_interface;
 const ANCHOR_DISCRIMINATOR: usize = 8;
-const TOKEN_DECIAL: u64 = 6;
+const TOKEN_DEMICAL: u8 = 6;
 #[program]
 pub mod token_example {
 
@@ -37,7 +37,7 @@ pub mod token_example {
             authority: owner_permission_acc,
         };
         let ix = CpiContext::new(ctx.accounts.token_program.to_account_info(), transfer_req);
-        token_interface::transfer_checked(ix, amount, TOKEN_DECIAL as u8)?;
+        token_interface::transfer_checked(ix, amount, TOKEN_DEMICAL)?;
 
         ctx.accounts.data.owner = ctx.accounts.user_token_acc.key();
         ctx.accounts.data.quantity += amount;
@@ -66,7 +66,7 @@ pub mod token_example {
             cpi_req,
             seeds,
         );
-        token_interface::transfer_checked(ix, amount, TOKEN_DECIAL as u8)?;
+        token_interface::transfer_checked(ix, amount, TOKEN_DEMICAL)?;
         ctx.accounts.bookeeping_acc.quantity -= amount;
 
         Ok(())
@@ -94,7 +94,7 @@ pub mod token_example {
             mint: ctx.accounts.mint.to_account_info(),
         };
         let req = CpiContext::new(ctx.accounts.token_program.to_account_info(), trans_req);
-        token_interface::transfer_checked(req, ctx.accounts.config.price, TOKEN_DECIAL as u8)?;
+        token_interface::transfer_checked(req, ctx.accounts.config.price, TOKEN_DEMICAL)?;
 
         let clock = Clock::get()?;
 
@@ -105,6 +105,31 @@ pub mod token_example {
             message: "success".to_string(),
             owner: ctx.accounts.owner.key(),
             expires_at: expiry_time,
+        });
+        Ok(())
+    }
+    pub fn renew_subscription(ctx: Context<SubscribeToVault>) -> Result<()> {
+        let trans_req = TransferChecked {
+            from: ctx.accounts.user_ata.to_account_info(),
+            authority: ctx.accounts.owner.to_account_info(),
+            to: ctx.accounts.vault_ata.to_account_info(),
+            mint: ctx.accounts.mint.to_account_info(),
+        };
+        let req = CpiContext::new(ctx.accounts.token_program.to_account_info(), trans_req);
+        token_interface::transfer_checked(req, ctx.accounts.config.price, TOKEN_DEMICAL)?;
+        let clock = Clock::get()?;
+        let current_time_unix = clock.unix_timestamp;
+        let new_expity = if current_time_unix > ctx.accounts.subcription.expires_at {
+            current_time_unix + ctx.accounts.config.duration as i64
+        } else {
+            ctx.accounts.subcription.expires_at + ctx.accounts.config.duration as i64
+        };
+
+        ctx.accounts.subcription.expires_at = new_expity;
+        emit!(SuccesfullRenew {
+            message: "success".to_string(),
+            owner: ctx.accounts.owner.key(),
+            new_expiry: new_expity
         });
         Ok(())
     }
@@ -352,4 +377,10 @@ pub struct SuccesfullSubscription {
     pub message: String,
     pub owner: Pubkey,
     pub expires_at: i64,
+}
+#[event]
+pub struct SuccesfullRenew {
+    pub message: String,
+    pub new_expiry: i64,
+    pub owner: Pubkey,
 }
