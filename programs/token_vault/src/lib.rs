@@ -15,9 +15,6 @@ pub mod token_example {
 
     use super::*;
 
-    pub fn create_mint(ctx: Context<CreateMint>) -> Result<()> {
-        Ok(())
-    }
     pub fn mint_to_user(ctx: Context<MintToUser>, amount: u64) -> Result<()> {
         let acc = ctx.accounts;
         let ix = MintTo {
@@ -30,7 +27,6 @@ pub mod token_example {
         token_interface::mint_to(cpi_tx, amount)?;
         Ok(())
     }
-    //:TODO: add create vault_token_acc, struct already written
 
     pub fn deposit(ctx: Context<DepositToVault>, amount: u64) -> Result<()> {
         let from_acc = ctx.accounts.user_token_acc.to_account_info();
@@ -78,7 +74,48 @@ pub mod token_example {
 
         Ok(())
     }
+    pub fn initialize_token_subscription(ctx: Context<InitializeAccount>) -> Result<()> {
+        ctx.accounts.config.owner = ctx.accounts.owner.key();
+        Ok(())
+    }
 }
+#[derive(Accounts)]
+pub struct InitializeAccount<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    #[account(init,
+        payer=owner,
+        space=ANCHOR_DISCRIMINATOR + ConfigOwner::INIT_SPACE,
+        seeds=[b"config"],
+        bump
+    )]
+    pub config: Account<'info, ConfigOwner>,
+
+    #[account(
+        seeds=[b"authority"], //why don't I need an init here?
+        bump,
+    )]
+    pub vault_authority: UncheckedAccount<'info>,
+    #[account(init_if_needed,
+    seeds=[b"adsayan_mint"],
+    payer=owner,
+    bump,
+    mint::decimals=6,
+    mint::authority=vault_authority.key(),
+    mint::freeze_authority=vault_authority.key()
+)]
+    pub mint: InterfaceAccount<'info, Mint>,
+    #[account(init,
+    payer=owner,
+    associated_token::mint=mint,
+    associated_token::authority=vault_authority,
+)]
+    pub vault_ata: InterfaceAccount<'info, TokenAccount>,
+    pub system_program: Program<'info, System>,
+    pub token_program: Interface<'info, TokenInterface>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+}
+
 #[derive(Accounts)]
 pub struct WithdrawFromVault<'info> {
     #[account(mut)]
@@ -156,54 +193,6 @@ pub struct DepositToVault<'info> {
 }
 
 #[derive(Accounts)]
-pub struct CreateVaultToken<'info> {
-    #[account(mut)]
-    pub owner: Signer<'info>,
-    #[account(mut,
-        seeds=[b"mint"],
-        bump
-    )]
-    pub mint: InterfaceAccount<'info, Mint>,
-    #[account(mut,
-    seeds=[b"authority"],
-        bump
-    )]
-    pub vault_authority: UncheckedAccount<'info>,
-    #[account(
-    init,
-    payer=owner,
-    associated_token::mint=mint,
-    associated_token::authority=vault_authority,
-)]
-    pub data: InterfaceAccount<'info, TokenAccount>,
-    pub system_program: Program<'info, System>,
-    pub token_program: Interface<'info, TokenInterface>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-}
-
-#[derive(Accounts)]
-pub struct CreateMint<'info> {
-    #[account(mut)]
-    pub signer: Signer<'info>,
-    #[account(
-        seeds=[b"authority"],
-        bump
-    )]
-    pub vault_authority: UncheckedAccount<'info>,
-    #[account(
-        init,
-        payer = signer,
-        seeds=[b"mint"],
-        bump,
-        mint::decimals = 6,
-        mint::authority = vault_authority,
-    )]
-    pub mint: InterfaceAccount<'info, Mint>,
-    pub system_program: Program<'info, System>,
-    pub token_program: Interface<'info, TokenInterface>,
-}
-
-#[derive(Accounts)]
 pub struct MintToUser<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
@@ -243,4 +232,13 @@ pub struct DepositeToken {
 pub enum TokenError {
     #[msg("not enough founds")]
     NotEnoughFunds,
+}
+
+#[derive(InitSpace, Debug)]
+#[account]
+pub struct ConfigOwner {
+    pub owner: Pubkey,
+    pub price: u64,
+    pub duration: u64,
+    pub is_paused: bool,
 }
