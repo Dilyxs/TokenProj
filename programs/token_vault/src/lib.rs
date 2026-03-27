@@ -1,8 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::token::{Token, TokenAccount};
 use anchor_spl::token_2022::MintTo;
-use anchor_spl::token_interface::{Mint, TokenInterface};
+use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 declare_id!("3pX5NKLru1UBDVckynWQxsgnJeUN3N1viy36Gk9TSn8d");
 use anchor_spl::token::Transfer;
 use anchor_spl::token_interface;
@@ -95,6 +94,7 @@ pub struct InitializeAccount<'info> {
         seeds=[b"authority"], //why don't I need an init here?
         bump,
     )]
+    ///CHECK: only for CPI
     pub vault_authority: UncheckedAccount<'info>,
     #[account(init_if_needed,
     seeds=[b"adsayan_mint"],
@@ -124,6 +124,7 @@ pub struct WithdrawFromVault<'info> {
         seeds=[b"authority"],
         bump
     )]
+    ///CHECK: only for CPI
     pub vault_authority: UncheckedAccount<'info>,
     #[account(mut,
         seeds=[b"mint"],
@@ -161,6 +162,7 @@ pub struct DepositToVault<'info> {
     seeds=[b"authority"],
     bump
 )]
+    ///CHECK: only for CPI
     pub vault_authority: UncheckedAccount<'info>,
     #[account(mut,
     seeds=[b"mint"],
@@ -201,6 +203,7 @@ pub struct MintToUser<'info> {
         seeds=[b"authority"],
         bump
     )]
+    ///CHECK: only for CPI
     pub vault_authority: UncheckedAccount<'info>,
     #[account(
         mut,
