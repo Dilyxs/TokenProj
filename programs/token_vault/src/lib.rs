@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::token_2022::MintTo;
+use anchor_spl::token_2022::{MintTo, TransferChecked};
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 declare_id!("3pX5NKLru1UBDVckynWQxsgnJeUN3N1viy36Gk9TSn8d");
 use anchor_spl::token::Transfer;
@@ -9,8 +9,6 @@ const ANCHOR_DISCRIMINATOR: usize = 8;
 const TOKEN_DECIAL: u64 = 6;
 #[program]
 pub mod token_example {
-
-    use anchor_spl::token_2022::TransferChecked;
 
     use super::*;
 
@@ -73,10 +71,107 @@ pub mod token_example {
 
         Ok(())
     }
-    pub fn initialize_token_subscription(ctx: Context<InitializeAccount>) -> Result<()> {
-        ctx.accounts.config.owner = ctx.accounts.owner.key();
+    pub fn initialize_token_subscription(
+        ctx: Context<InitializeAccount>,
+        subscription_price: u64,
+        duration: u64,
+    ) -> Result<()> {
+        ctx.accounts.config.admin = ctx.accounts.owner.key();
+        ctx.accounts.config.price = subscription_price;
+        ctx.accounts.config.duration = duration;
+        ctx.accounts.config.is_paused = false;
         Ok(())
     }
+    pub fn set_price(ctx: Context<ChangePrice>, new_price: u64) -> Result<()> {
+        ctx.accounts.config.price = new_price;
+        Ok(())
+    }
+    pub fn subscribe_to_vault(ctx: Context<SubscribeToVault>) -> Result<()> {
+        let trans_req = TransferChecked {
+            from: ctx.accounts.user_ata.to_account_info(),
+            authority: ctx.accounts.owner.to_account_info(),
+            to: ctx.accounts.vault_ata.to_account_info(),
+            mint: ctx.accounts.mint.to_account_info(),
+        };
+        let req = CpiContext::new(ctx.accounts.token_program.to_account_info(), trans_req);
+        token_interface::transfer_checked(req, ctx.accounts.config.price, TOKEN_DECIAL as u8)?;
+
+        let clock = Clock::get()?;
+
+        ctx.accounts.subcription.owner = ctx.accounts.owner.key();
+        let expiry_time = (ctx.accounts.config.duration + clock.unix_timestamp as u64) as i64;
+        ctx.accounts.subcription.expires_at = expiry_time;
+        emit!(SuccesfullSubscription {
+            message: "success".to_string(),
+            owner: ctx.accounts.owner.key(),
+            expires_at: expiry_time,
+        });
+        Ok(())
+    }
+}
+#[derive(Accounts)]
+pub struct SubscribeToVault<'info> {
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    #[account(mut,
+        seeds=[b"adsayan_mint"],
+        bump
+    )]
+    pub mint: InterfaceAccount<'info, Mint>,
+    #[account(init_if_needed,
+        payer=owner,
+        associated_token::mint=mint,
+        associated_token::authority=owner,
+    )]
+    pub user_ata: InterfaceAccount<'info, TokenAccount>,
+    #[account(mut,
+    seeds=[b"authority"],
+    bump)]
+    ///CHECK: ok
+    pub vault_authority: UncheckedAccount<'info>,
+    #[account(mut,
+    associated_token::mint=mint,
+    associated_token::authority=vault_authority)]
+    pub vault_ata: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(mut,
+        seeds=[b"config"],
+        bump
+    )]
+    pub config: Account<'info, ConfigOwner>,
+    #[account(
+        init_if_needed,
+        payer=owner,
+        space = Subscription::INIT_SPACE,
+    seeds=[b"subscription", owner.key().as_ref()],
+    bump)]
+    pub subcription: Account<'info, Subscription>,
+    pub system_program: Program<'info, System>,
+    pub token_program: Interface<'info, TokenInterface>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+}
+#[derive(Accounts)]
+pub struct ChangePrice<'info> {
+    #[account(mut)]
+    pub admin: Signer<'info>,
+    #[account(mut,
+    seeds=[b"authority"],
+    bump,
+)]
+    /// CHECK: CPI use
+    pub vault_authority: UncheckedAccount<'info>,
+    #[account(mut,
+    seeds=[b"adsayan_mint"],
+    bump,
+)]
+    pub mint: InterfaceAccount<'info, Mint>,
+    #[account(mut,
+    seeds=[b"config"], 
+        bump,
+        has_one=admin,
+    )]
+    pub config: Account<'info, ConfigOwner>,
+    pub system_program: Program<'info, System>,
 }
 #[derive(Accounts)]
 pub struct InitializeAccount<'info> {
@@ -240,8 +335,21 @@ pub enum TokenError {
 #[derive(InitSpace, Debug)]
 #[account]
 pub struct ConfigOwner {
-    pub owner: Pubkey,
+    pub admin: Pubkey,
     pub price: u64,
     pub duration: u64,
     pub is_paused: bool,
+}
+#[derive(InitSpace, Debug)]
+#[account]
+pub struct Subscription {
+    pub owner: Pubkey,
+    pub expires_at: i64,
+}
+
+#[event]
+pub struct SuccesfullSubscription {
+    pub message: String,
+    pub owner: Pubkey,
+    pub expires_at: i64,
 }
