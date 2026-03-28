@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token_2022::{MintTo, TransferChecked};
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
-declare_id!("3pX5NKLru1UBDVckynWQxsgnJeUN3N1viy36Gk9TSn8d");
+declare_id!("3TNqUEEobyKQYpa5Q3ZVZdRXyyrd4sXPXuxi2TPG7VLP");
 use anchor_spl::token_interface;
 const ANCHOR_DISCRIMINATOR: usize = 8;
 const TOKEN_DEMICAL: u8 = 6;
@@ -337,6 +337,7 @@ pub struct DepositToVault<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
+//for now this is like a faucet function to mint token to user, later we can make it only mint to vault authority and then the authority can distribute to users when they subscribe or something like that
 #[derive(Accounts)]
 pub struct MintToUser<'info> {
     #[account(mut)]

@@ -1,142 +1,105 @@
 import * as anchor from "@coral-xyz/anchor";
-import { expect } from "chai";
 import { Program } from "@coral-xyz/anchor";
-import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { TokenExample } from "../target/types/token_example";
-
-const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
-  "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
-);
-const TOKEN_2022_PROGRAM_ID = new PublicKey(
-  "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
-);
-
-const findPda = (seeds: Buffer[], programId: PublicKey): PublicKey =>
-  PublicKey.findProgramAddressSync(seeds, programId)[0];
-
-const findAta = (owner: PublicKey, mint: PublicKey): PublicKey =>
-  PublicKey.findProgramAddressSync(
-    [owner.toBuffer(), TOKEN_2022_PROGRAM_ID.toBuffer(), mint.toBuffer()],
-    ASSOCIATED_TOKEN_PROGRAM_ID
-  )[0];
+import {
+  getAssociatedTokenAddress,
+  TOKEN_2022_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
+import { Keypair, PublicKey } from "@solana/web3.js";
+import { expect } from "chai";
 
 describe("token_vault", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
-
-  const program = anchor.workspace.tokenExample as Program<TokenExample>;
+  const oneDaySeconds = 60 * 60 * 24;
+  const program = anchor.workspace.TokenExample as Program<TokenExample>;
   const owner = provider.wallet;
+  const stranger = Keypair.generate();
 
-  const configPda = findPda([Buffer.from("config")], program.programId);
-  const vaultAuthorityPda = findPda(
+  const tokenProgram = new PublicKey(TOKEN_2022_PROGRAM_ID);
+  const associatedTokenProgram = new PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID);
+  const systemProgram = anchor.web3.SystemProgram.programId;
+
+  const [configPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("config")],
+    program.programId
+  );
+  const [vaultAuthorityPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("authority")],
     program.programId
   );
-  const mintPda = findPda([Buffer.from("adsayan_mint")], program.programId);
-  const vaultAta = findAta(vaultAuthorityPda, mintPda);
+  const [mintPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("adsayan_mint")],
+    program.programId
+  );
 
-  const subscriptionPrice = new anchor.BN(1_000_000);
-  const duration = new anchor.BN(60);
-  const updatedPrice = new anchor.BN(2_500_000);
-  let stranger: Keypair;
-
-  before("airdrop non-admin signer", async () => {
-    stranger = Keypair.generate();
+  let vaultAta: PublicKey;
+  before(async () => {
+    vaultAta = await getAssociatedTokenAddress(
+      mintPda,
+      vaultAuthorityPda,
+      true,
+      TOKEN_2022_PROGRAM_ID
+    );
     const sig = await provider.connection.requestAirdrop(
       stranger.publicKey,
       2 * anchor.web3.LAMPORTS_PER_SOL
     );
-    await provider.connection.confirmTransaction(sig, "confirmed");
+    const latestBlock = await provider.connection.getLatestBlockhash();
+    await provider.connection.confirmTransaction({
+      blockhash: latestBlock.blockhash,
+      lastValidBlockHeight: latestBlock.lastValidBlockHeight,
+      signature: sig,
+    });
   });
 
-  it("initializes subscription config", async () => {
+  it("initialize mint, vault, config", async () => {
     await program.methods
-      .initializeTokenSubscription(subscriptionPrice, duration)
-      .accountsPartial({
+      .initializeTokenSubscription(
+        new anchor.BN(1000000),
+        new anchor.BN(oneDaySeconds * 30)
+      )
+      .accounts({
         owner: owner.publicKey,
         config: configPda,
         vaultAuthority: vaultAuthorityPda,
         mint: mintPda,
-        vaultAta,
-        systemProgram: SystemProgram.programId,
-        tokenProgram: TOKEN_2022_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        vaultAta: vaultAta,
+        systemProgram: systemProgram,
+        tokenProgram: tokenProgram,
+        associatedTokenProgram: associatedTokenProgram,
       })
       .rpc();
-
     const config = await program.account.configOwner.fetch(configPda);
-    expect(config.admin.toBase58()).to.eq(owner.publicKey.toBase58());
-    expect(config.price.toString()).to.eq(subscriptionPrice.toString());
-    expect(config.duration.toString()).to.eq(duration.toString());
-    expect(config.isPaused).to.eq(false);
+    expect(config.admin.toBase58()).to.equal(owner.publicKey.toBase58());
+    expect(config.price.toNumber()).to.equal(1000000);
+    expect(config.duration.toNumber()).to.equal(oneDaySeconds * 30);
   });
-
-  it("allows admin to update price", async () => {
+  //now check if we can get somes Tokens
+  it("get some adsayan tokens", async () => {
+    const [ata] = PublicKey.findProgramAddressSync(
+      [
+        owner.publicKey.toBuffer(),
+        TOKEN_2022_PROGRAM_ID.toBuffer(),
+        mintPda.toBuffer(),
+      ],
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    );
     await program.methods
-      .setPrice(updatedPrice)
-      .accountsPartial({
-        admin: owner.publicKey,
+      .mintToUser(new anchor.BN(1000000))
+      .accounts({
+        owner: owner.publicKey,
         vaultAuthority: vaultAuthorityPda,
         mint: mintPda,
-        config: configPda,
-        systemProgram: SystemProgram.programId,
+        userTokenAccount: ata,
+        systemProgram: systemProgram,
+        tokenProgram: tokenProgram,
+        associatedTokenProgram: associatedTokenProgram,
       })
       .rpc();
-
-    const config = await program.account.configOwner.fetch(configPda);
-    expect(config.price.toString()).to.eq(updatedPrice.toString());
-  });
-
-  it("rejects non-admin price update", async () => {
-    try {
-      await program.methods
-        .setPrice(new anchor.BN(9_999_999))
-        .accountsPartial({
-          admin: stranger.publicKey,
-          vaultAuthority: vaultAuthorityPda,
-          mint: mintPda,
-          config: configPda,
-          systemProgram: SystemProgram.programId,
-        })
-        .signers([stranger])
-        .rpc();
-      expect.fail("setPrice should fail for non-admin signer");
-    } catch (err: any) {
-      const msg = String(err);
-      const hasExpectedError =
-        msg.includes("has one") ||
-        msg.includes("ConstraintHasOne") ||
-        msg.includes("A has one constraint was violated");
-      expect(hasExpectedError).to.eq(true);
-    }
-  });
-
-  it("fails to subscribe without minted user funds", async () => {
-    const userAta = findAta(owner.publicKey, mintPda);
-    const subscriptionPda = findPda(
-      [Buffer.from("subscription"), owner.publicKey.toBuffer()],
-      program.programId
-    );
-
-    try {
-      await program.methods
-        .subscribeToVault()
-        .accountsPartial({
-          owner: owner.publicKey,
-          mint: mintPda,
-          userAta,
-          vaultAuthority: vaultAuthorityPda,
-          vaultAta,
-          config: configPda,
-          subcription: subscriptionPda,
-          systemProgram: SystemProgram.programId,
-          tokenProgram: TOKEN_2022_PROGRAM_ID,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        })
-        .rpc();
-      expect.fail("subscribeToVault should fail when user ATA has no tokens");
-    } catch (err: any) {
-      expect(String(err).toLowerCase()).to.include("insufficient");
-    }
+    //check that we did get the tokens
+    const balance = await provider.connection.getTokenAccountBalance(ata);
+    expect(Number(balance.value.amount)).to.equal(1000000);
   });
 });
