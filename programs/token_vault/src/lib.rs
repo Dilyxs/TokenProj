@@ -132,7 +132,7 @@ pub mod token_example {
         });
         Ok(())
     }
-    pub fn is_user_subcribed(ctx: Context<isUserSubscriptionValid>) -> Result<()> {
+    pub fn is_user_subcribed(ctx: Context<IsUserSubscriptionValid>) -> Result<()> {
         let clock = Clock::get()?;
         let current_time = clock.unix_timestamp;
         if current_time <= ctx.accounts.user_acc.expires_at {
@@ -144,7 +144,7 @@ pub mod token_example {
     }
 }
 #[derive(Accounts)]
-pub struct isUserSubscriptionValid<'info> {
+pub struct IsUserSubscriptionValid<'info> {
     ///CHECK just reading so fine!
     pub owner: AccountInfo<'info>,
     #[account(
