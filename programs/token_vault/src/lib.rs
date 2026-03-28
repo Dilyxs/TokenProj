@@ -152,7 +152,7 @@ pub struct isUserSubscriptionValid<'info> {
     bump)]
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(
-        seeds=[b"subcription", owner.key().as_ref()],
+        seeds=[b"subscription", owner.key().as_ref()],
         bump
     )]
     pub user_acc: Account<'info, Subscription>,
@@ -193,7 +193,7 @@ pub struct SubscribeToVault<'info> {
         space = Subscription::INIT_SPACE,
     seeds=[b"subscription", owner.key().as_ref()],
     bump)]
-    pub subcription: Account<'info, Subscription>,
+    pub subscription: Account<'info, Subscription>,
     pub system_program: Program<'info, System>,
     pub token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, AssociatedToken>,
