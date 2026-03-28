@@ -140,4 +140,34 @@ describe("token_vault", () => {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     await program.removeEventListener(listener);
   });
+
+  it("check if subscription_valid", async () => {
+    const [subscriptionPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("subscription"), owner.publicKey.toBuffer()],
+      program.programId
+    );
+
+    const listener = program.addEventListener(
+      "isValidSubscription",
+      (event) => {
+        if ("isValid" in event) {
+          expect(event.isValid).to.equals(true);
+        } else {
+          expect(false).to.equals(true);
+        }
+      }
+    );
+
+    await program.methods
+      .isUserSubcribed()
+      .accounts({
+        owner: owner.publicKey,
+        mint: mintPda,
+        userAcc: subscriptionPda,
+      })
+      .rpc();
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await program.removeEventListener(listener);
+  });
 });
