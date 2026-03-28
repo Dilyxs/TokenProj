@@ -33,6 +33,10 @@ describe("token_vault", () => {
     [Buffer.from("adsayan_mint")],
     program.programId
   );
+  const [depositInfoPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("deposit_info"), owner.publicKey.toBuffer()],
+    program.programId
+  );
 
   let vaultAta: PublicKey;
   let userAta: PublicKey;
@@ -169,5 +173,86 @@ describe("token_vault", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 1000));
     await program.removeEventListener(listener);
+  });
+
+  it("deposit tokens into vault", async () => {
+    await program.methods
+      .mintToUser(new anchor.BN(2000000))
+      .accounts({
+        owner: owner.publicKey,
+        vaultAuthority: vaultAuthorityPda,
+        mint: mintPda,
+        userTokenAccount: userAta,
+        systemProgram: systemProgram,
+        tokenProgram: tokenProgram,
+        associatedTokenProgram: associatedTokenProgram,
+      })
+      .rpc();
+
+    await program.methods
+      .deposit(new anchor.BN(1000000))
+      .accounts({
+        owner: owner.publicKey,
+        vaultAuthority: vaultAuthorityPda,
+        mint: mintPda,
+        userTokenAcc: userAta,
+        vaultAcc: vaultAta,
+        data: depositInfoPda,
+        systemProgram: systemProgram,
+        tokenProgram: tokenProgram,
+        associatedTokenProgram: associatedTokenProgram,
+      })
+      .rpc();
+
+    const depositInfo = await program.account.depositeToken.fetch(
+      depositInfoPda
+    );
+    expect(Number(depositInfo.quantity)).to.equal(1000000);
+  });
+
+  it("withdraw tokens from vault (success)", async () => {
+    await program.methods
+      .withdraw(new anchor.BN(500000))
+      .accounts({
+        owner: owner.publicKey,
+        vaultAuthority: vaultAuthorityPda,
+        mint: mintPda,
+        ownerAta: userAta,
+        vaultAta: vaultAta,
+        bookeepingAcc: depositInfoPda,
+        systemProgram: systemProgram,
+        tokenProgram: tokenProgram,
+        associatedTokenProgram: associatedTokenProgram,
+      })
+      .rpc();
+
+    const depositInfo = await program.account.depositeToken.fetch(
+      depositInfoPda
+    );
+    expect(Number(depositInfo.quantity)).to.equal(500000);
+  });
+
+  it("withdraw tokens from vault (should fail)", async () => {
+    try {
+      await program.methods
+        .withdraw(new anchor.BN(700000))
+        .accounts({
+          owner: owner.publicKey,
+          vaultAuthority: vaultAuthorityPda,
+          mint: mintPda,
+          ownerAta: userAta,
+          vaultAta: vaultAta,
+          bookeepingAcc: depositInfoPda,
+          systemProgram: systemProgram,
+          tokenProgram: tokenProgram,
+          associatedTokenProgram: associatedTokenProgram,
+        })
+        .rpc();
+
+      expect.fail("expected withdraw to fail with not enough funds");
+    } catch (err) {
+      const msg = (err as Error).message;
+      expect(msg).to.include("not enough founds");
+    }
   });
 });
