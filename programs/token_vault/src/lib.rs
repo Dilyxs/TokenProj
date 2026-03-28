@@ -97,9 +97,9 @@ pub mod token_example {
 
         let clock = Clock::get()?;
 
-        ctx.accounts.subcription.owner = ctx.accounts.owner.key();
+        ctx.accounts.subscription.owner = ctx.accounts.owner.key();
         let expiry_time = (ctx.accounts.config.duration + clock.unix_timestamp as u64) as i64;
-        ctx.accounts.subcription.expires_at = expiry_time;
+        ctx.accounts.subscription.expires_at = expiry_time;
         emit!(SuccesfullSubscription {
             message: "success".to_string(),
             owner: ctx.accounts.owner.key(),
@@ -118,13 +118,13 @@ pub mod token_example {
         token_interface::transfer_checked(req, ctx.accounts.config.price, TOKEN_DEMICAL)?;
         let clock = Clock::get()?;
         let current_time_unix = clock.unix_timestamp;
-        let new_expity = if current_time_unix > ctx.accounts.subcription.expires_at {
+        let new_expity = if current_time_unix > ctx.accounts.subscription.expires_at {
             current_time_unix + ctx.accounts.config.duration as i64
         } else {
-            ctx.accounts.subcription.expires_at + ctx.accounts.config.duration as i64
+            ctx.accounts.subscription.expires_at + ctx.accounts.config.duration as i64
         };
 
-        ctx.accounts.subcription.expires_at = new_expity;
+        ctx.accounts.subscription.expires_at = new_expity;
         emit!(SuccesfullRenew {
             message: "success".to_string(),
             owner: ctx.accounts.owner.key(),
