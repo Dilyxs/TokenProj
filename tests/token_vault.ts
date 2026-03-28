@@ -175,6 +175,80 @@ describe("token_vault", () => {
     await program.removeEventListener(listener);
   });
 
+  it("change price and verify config", async () => {
+    await program.methods
+      .setPrice(new anchor.BN(500000))
+      .accounts({
+        admin: owner.publicKey,
+        vaultAuthority: vaultAuthorityPda,
+        mint: mintPda,
+        config: configPda,
+        systemProgram: systemProgram,
+      })
+      .rpc();
+
+    const config = await program.account.configOwner.fetch(configPda);
+    expect(config.price.toNumber()).to.equal(500000);
+  });
+
+  it("renew subscription extends expiry", async () => {
+    const [subscriptionPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("subscription"), owner.publicKey.toBuffer()],
+      program.programId
+    );
+
+    await program.methods
+      .mintToUser(new anchor.BN(500000))
+      .accounts({
+        owner: owner.publicKey,
+        vaultAuthority: vaultAuthorityPda,
+        mint: mintPda,
+        userTokenAccount: userAta,
+        systemProgram: systemProgram,
+        tokenProgram: tokenProgram,
+        associatedTokenProgram: associatedTokenProgram,
+      })
+      .rpc();
+
+    const beforeRenew = await program.account.subscription.fetch(
+      subscriptionPda
+    );
+    const oldExpiry = Number(beforeRenew.expiresAt);
+
+    const listener = program.addEventListener("succesfullRenew", (event) => {
+      if ("message" in event && "newExpiry" in event) {
+        expect(event.message).to.equals("success");
+        expect(Number(event.newExpiry)).to.be.greaterThan(oldExpiry);
+      } else {
+        expect(false).to.equals(true);
+      }
+    });
+
+    await program.methods
+      .renewSubscription()
+      .accounts({
+        owner: owner.publicKey,
+        mint: mintPda,
+        userAta: userAta,
+        vaultAuthority: vaultAuthorityPda,
+        vaultAta: vaultAta,
+        config: configPda,
+        subscription: subscriptionPda,
+        systemProgram: systemProgram,
+        tokenProgram: tokenProgram,
+        associatedTokenProgram: associatedTokenProgram,
+      })
+      .rpc();
+
+    const afterRenew = await program.account.subscription.fetch(
+      subscriptionPda
+    );
+    expect(Number(afterRenew.expiresAt)).to.be.greaterThan(oldExpiry);
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await program.removeEventListener(listener);
+  });
+
   it("deposit tokens into vault", async () => {
     await program.methods
       .mintToUser(new anchor.BN(2000000))

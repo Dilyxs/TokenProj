@@ -98,7 +98,13 @@ pub mod token_example {
         let clock = Clock::get()?;
 
         ctx.accounts.subscription.owner = ctx.accounts.owner.key();
-        let expiry_time = (ctx.accounts.config.duration + clock.unix_timestamp as u64) as i64;
+        //overflow situation
+        let expiry_time: i64 =
+            if ctx.accounts.config.duration as i64 + clock.unix_timestamp as i64 > i64::MAX {
+                i64::MAX
+            } else {
+                ctx.accounts.config.duration as i64 + clock.unix_timestamp as i64
+            };
         ctx.accounts.subscription.expires_at = expiry_time;
         emit!(SuccesfullSubscription {
             message: "success".to_string(),
@@ -119,9 +125,18 @@ pub mod token_example {
         let clock = Clock::get()?;
         let current_time_unix = clock.unix_timestamp;
         let new_expity = if current_time_unix > ctx.accounts.subscription.expires_at {
-            current_time_unix + ctx.accounts.config.duration as i64
+            if current_time_unix + ctx.accounts.config.duration as i64 > i64::MAX {
+                i64::MAX
+            } else {
+                current_time_unix + ctx.accounts.config.duration as i64
+            }
         } else {
-            ctx.accounts.subscription.expires_at + ctx.accounts.config.duration as i64
+            if ctx.accounts.subscription.expires_at + ctx.accounts.config.duration as i64 > i64::MAX
+            {
+                i64::MAX
+            } else {
+                ctx.accounts.subscription.expires_at + ctx.accounts.config.duration as i64
+            }
         };
 
         ctx.accounts.subscription.expires_at = new_expity;
