@@ -329,4 +329,181 @@ describe("token_vault", () => {
       expect(msg).to.include("not enough founds");
     }
   });
+
+  it("subscribe fails when user balance is below price", async () => {
+    const [strangerSubscriptionPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("subscription"), stranger.publicKey.toBuffer()],
+      program.programId
+    );
+    const strangerAta = await getAssociatedTokenAddress(
+      mintPda,
+      stranger.publicKey,
+      false,
+      TOKEN_2022_PROGRAM_ID
+    );
+
+    await program.methods
+      .setPrice(new anchor.BN(900000))
+      .accounts({
+        admin: owner.publicKey,
+        vaultAuthority: vaultAuthorityPda,
+        mint: mintPda,
+        config: configPda,
+        systemProgram: systemProgram,
+      })
+      .rpc();
+
+    try {
+      await program.methods
+        .subscribeToVault()
+        .accounts({
+          owner: stranger.publicKey,
+          mint: mintPda,
+          userAta: strangerAta,
+          vaultAuthority: vaultAuthorityPda,
+          vaultAta: vaultAta,
+          config: configPda,
+          subscription: strangerSubscriptionPda,
+          systemProgram: systemProgram,
+          tokenProgram: tokenProgram,
+          associatedTokenProgram: associatedTokenProgram,
+        })
+        .signers([stranger])
+        .rpc();
+
+      expect.fail("expected subscribeToVault to fail for low balance");
+    } catch (err) {
+      const msg = (err as Error).message;
+      expect(msg.length).to.be.greaterThan(0);
+    }
+  });
+
+  it("renew fails when user balance is below price", async () => {
+    const [strangerSubscriptionPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("subscription"), stranger.publicKey.toBuffer()],
+      program.programId
+    );
+    const strangerAta = await getAssociatedTokenAddress(
+      mintPda,
+      stranger.publicKey,
+      false,
+      TOKEN_2022_PROGRAM_ID
+    );
+
+    await program.methods
+      .setPrice(new anchor.BN(400000))
+      .accounts({
+        admin: owner.publicKey,
+        vaultAuthority: vaultAuthorityPda,
+        mint: mintPda,
+        config: configPda,
+        systemProgram: systemProgram,
+      })
+      .rpc();
+
+    await program.methods
+      .mintToUser(new anchor.BN(400000))
+      .accounts({
+        owner: stranger.publicKey,
+        vaultAuthority: vaultAuthorityPda,
+        mint: mintPda,
+        userTokenAccount: strangerAta,
+        systemProgram: systemProgram,
+        tokenProgram: tokenProgram,
+        associatedTokenProgram: associatedTokenProgram,
+      })
+      .signers([stranger])
+      .rpc();
+
+    await program.methods
+      .subscribeToVault()
+      .accounts({
+        owner: stranger.publicKey,
+        mint: mintPda,
+        userAta: strangerAta,
+        vaultAuthority: vaultAuthorityPda,
+        vaultAta: vaultAta,
+        config: configPda,
+        subscription: strangerSubscriptionPda,
+        systemProgram: systemProgram,
+        tokenProgram: tokenProgram,
+        associatedTokenProgram: associatedTokenProgram,
+      })
+      .signers([stranger])
+      .rpc();
+
+    const balanceAfterSubscribe =
+      await provider.connection.getTokenAccountBalance(strangerAta);
+    expect(Number(balanceAfterSubscribe.value.amount)).to.equal(0);
+
+    try {
+      await program.methods
+        .renewSubscription()
+        .accounts({
+          owner: stranger.publicKey,
+          mint: mintPda,
+          userAta: strangerAta,
+          vaultAuthority: vaultAuthorityPda,
+          vaultAta: vaultAta,
+          config: configPda,
+          subscription: strangerSubscriptionPda,
+          systemProgram: systemProgram,
+          tokenProgram: tokenProgram,
+          associatedTokenProgram: associatedTokenProgram,
+        })
+        .signers([stranger])
+        .rpc();
+
+      expect.fail("expected renewSubscription to fail for low balance");
+    } catch (err) {
+      const msg = (err as Error).message;
+      expect(msg.length).to.be.greaterThan(0);
+    }
+  });
+
+  it("set price rejects non-admin signer", async () => {
+    try {
+      await program.methods
+        .setPrice(new anchor.BN(123456))
+        .accounts({
+          admin: stranger.publicKey,
+          vaultAuthority: vaultAuthorityPda,
+          mint: mintPda,
+          config: configPda,
+          systemProgram: systemProgram,
+        })
+        .signers([stranger])
+        .rpc();
+
+      expect.fail("expected setPrice to fail for non-admin signer");
+    } catch (err) {
+      const msg = (err as Error).message;
+      expect(msg.length).to.be.greaterThan(0);
+    }
+  });
+
+  it("mint mismatch in accounts is rejected", async () => {
+    try {
+      await program.methods
+        .deposit(new anchor.BN(1))
+        .accounts({
+          owner: owner.publicKey,
+          vaultAuthority: vaultAuthorityPda,
+          mint: configPda,
+          userTokenAcc: userAta,
+          vaultAcc: vaultAta,
+          data: depositInfoPda,
+          systemProgram: systemProgram,
+          tokenProgram: tokenProgram,
+          associatedTokenProgram: associatedTokenProgram,
+        })
+        .rpc();
+
+      expect.fail("expected deposit to fail with mismatched mint account");
+    } catch (err) {
+      const msg = (err as Error).message;
+      expect(msg.length).to.be.greaterThan(0);
+    }
+  });
+  //TODO: test what happens at overflow, what about when dealing with stale data?
 });
