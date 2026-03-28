@@ -170,6 +170,7 @@ pub struct SubscribeToVault<'info> {
         payer=owner,
         associated_token::mint=mint,
         associated_token::authority=owner,
+        associated_token::token_program=token_program
     )]
     pub user_ata: InterfaceAccount<'info, TokenAccount>,
     #[account(mut,
@@ -179,6 +180,7 @@ pub struct SubscribeToVault<'info> {
     pub vault_authority: UncheckedAccount<'info>,
     #[account(mut,
     associated_token::mint=mint,
+        associated_token::token_program=token_program,
     associated_token::authority=vault_authority)]
     pub vault_ata: InterfaceAccount<'info, TokenAccount>,
 
@@ -251,6 +253,7 @@ pub struct InitializeAccount<'info> {
     #[account(init,
     payer=owner,
     associated_token::mint=mint,
+        associated_token::token_program=token_program,
     associated_token::authority=vault_authority,
 )]
     pub vault_ata: InterfaceAccount<'info, TokenAccount>,
@@ -277,11 +280,13 @@ pub struct WithdrawFromVault<'info> {
     #[account(
         mut,
         associated_token::mint=mint,
+        associated_token::token_program=token_program,
         associated_token::authority=owner
     )]
     pub owner_ata: InterfaceAccount<'info, TokenAccount>,
     #[account(mut,
         associated_token::mint=mint,
+        associated_token::token_program=token_program,
         associated_token::authority=vault_authority
     )]
     pub vault_ata: InterfaceAccount<'info, TokenAccount>,
@@ -315,12 +320,14 @@ pub struct DepositToVault<'info> {
     #[account(
     mut,
     associated_token::mint=mint,
+        associated_token::token_program=token_program,
     associated_token::authority=owner,
 )]
     pub user_token_acc: InterfaceAccount<'info, TokenAccount>,
     #[account(
             mut,
             associated_token::mint=mint,
+        associated_token::token_program=token_program,
             associated_token::authority=vault_authority,
         )]
     pub vault_acc: InterfaceAccount<'info, TokenAccount>,
@@ -360,6 +367,7 @@ pub struct MintToUser<'info> {
         init_if_needed,
         payer=owner,
         associated_token::mint=mint,
+        associated_token::token_program=token_program,
         associated_token::authority=owner,
     )]
     pub user_token_account: InterfaceAccount<'info, TokenAccount>,

@@ -35,6 +35,7 @@ describe("token_vault", () => {
   );
 
   let vaultAta: PublicKey;
+  let userAta: PublicKey;
   before(async () => {
     vaultAta = await getAssociatedTokenAddress(
       mintPda,
@@ -52,6 +53,15 @@ describe("token_vault", () => {
       lastValidBlockHeight: latestBlock.lastValidBlockHeight,
       signature: sig,
     });
+
+    userAta = PublicKey.findProgramAddressSync(
+      [
+        owner.publicKey.toBuffer(),
+        TOKEN_2022_PROGRAM_ID.toBuffer(),
+        mintPda.toBuffer(),
+      ],
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    )[0];
   });
 
   it("initialize mint, vault, config", async () => {
@@ -78,48 +88,24 @@ describe("token_vault", () => {
   });
   //now check if we can get somes Tokens
   it("get some adsayan tokens", async () => {
-    const [ata] = PublicKey.findProgramAddressSync(
-      [
-        owner.publicKey.toBuffer(),
-        TOKEN_2022_PROGRAM_ID.toBuffer(),
-        mintPda.toBuffer(),
-      ],
-      ASSOCIATED_TOKEN_PROGRAM_ID
-    );
     await program.methods
       .mintToUser(new anchor.BN(1000000))
       .accounts({
         owner: owner.publicKey,
         vaultAuthority: vaultAuthorityPda,
         mint: mintPda,
-        userTokenAccount: ata,
+        userTokenAccount: userAta,
         systemProgram: systemProgram,
         tokenProgram: tokenProgram,
         associatedTokenProgram: associatedTokenProgram,
       })
       .rpc();
     //check that we did get the tokens
-    const balance = await provider.connection.getTokenAccountBalance(ata);
+    const balance = await provider.connection.getTokenAccountBalance(userAta);
     expect(Number(balance.value.amount)).to.equal(1000000);
   });
   //we should have exactly enough to buy a subscription
   it("enough for one subscription", async () => {
-    const [userAta] = PublicKey.findProgramAddressSync(
-      [
-        owner.publicKey.toBuffer(),
-        TOKEN_2022_PROGRAM_ID.toBuffer(),
-        mintPda.toBuffer(),
-      ],
-      ASSOCIATED_TOKEN_PROGRAM_ID
-    );
-    const [vaultAta] = PublicKey.findProgramAddressSync(
-      [
-        vaultAuthorityPda.toBuffer(),
-        TOKEN_2022_PROGRAM_ID.toBuffer(),
-        mintPda.toBuffer(),
-      ],
-      ASSOCIATED_TOKEN_PROGRAM_ID
-    );
     const [subscriptionPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("subscription"), owner.publicKey.toBuffer()],
       program.programId
