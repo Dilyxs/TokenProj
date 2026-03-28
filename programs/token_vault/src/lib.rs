@@ -190,7 +190,7 @@ pub struct SubscribeToVault<'info> {
     #[account(
         init_if_needed,
         payer=owner,
-        space = Subscription::INIT_SPACE,
+        space = Subscription::INIT_SPACE + ANCHOR_DISCRIMINATOR,
     seeds=[b"subscription", owner.key().as_ref()],
     bump)]
     pub subscription: Account<'info, Subscription>,

@@ -19,7 +19,7 @@ describe("token_vault", () => {
 
   const tokenProgram = new PublicKey(TOKEN_2022_PROGRAM_ID);
   const associatedTokenProgram = new PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID);
-  const systemProgram = anchor.web3.SystemProgram.programId;
+  const systemProgram: PublicKey = anchor.web3.SystemProgram.programId;
 
   const [configPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("config")],
@@ -101,5 +101,57 @@ describe("token_vault", () => {
     //check that we did get the tokens
     const balance = await provider.connection.getTokenAccountBalance(ata);
     expect(Number(balance.value.amount)).to.equal(1000000);
+  });
+  //we should have exactly enough to buy a subscription
+  it("enough for one subscription", async () => {
+    const [userAta] = PublicKey.findProgramAddressSync(
+      [
+        owner.publicKey.toBuffer(),
+        TOKEN_2022_PROGRAM_ID.toBuffer(),
+        mintPda.toBuffer(),
+      ],
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    );
+    const [vaultAta] = PublicKey.findProgramAddressSync(
+      [
+        vaultAuthorityPda.toBuffer(),
+        TOKEN_2022_PROGRAM_ID.toBuffer(),
+        mintPda.toBuffer(),
+      ],
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    );
+    const [subscriptionPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("subscription"), owner.publicKey.toBuffer()],
+      program.programId
+    );
+    //event listener
+    const listener = program.addEventListener(
+      "succesfullSubscription",
+      (event) => {
+        if ("message" in event) {
+          expect(event.message).to.equals("success");
+        } else {
+          expect(false).to.equals(true);
+        }
+      }
+    );
+    await program.methods
+      .subscribeToVault()
+      .accounts({
+        owner: owner.publicKey,
+        mint: mintPda,
+        userAta: userAta,
+        vaultAuthority: vaultAuthorityPda,
+        vaultAta: vaultAta,
+        config: configPda,
+        subscription: subscriptionPda,
+        systemProgram: systemProgram,
+        tokenProgram: tokenProgram,
+        associatedTokenProgram: associatedTokenProgram,
+      })
+      .rpc();
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await program.removeEventListener(listener);
   });
 });
